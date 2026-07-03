@@ -23,7 +23,23 @@ intents.members = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 
+# Loads the list of known malicious users
+black_list = []
 
+BLACKLIST_FILE = "blacklist.json"
+
+def load_blacklist():
+    try: 
+        with open(BLACKLIST_FILE, "r") as f:
+            return set(json.load(f))
+    except:
+        return set()
+    
+def save_blacklist():
+    with open(BLACKLIST_FILE, "w") as f:
+        json.dump(list(black_list), f)
+
+black_list = load_blacklist()
 
 
 # Sets up malicious hash list
@@ -112,23 +128,7 @@ async def on_message(message):
     await bot.process_commands(message)
 
 
-# Loads the list of known malicious users
-black_list = []
 
-BLACKLIST_FILE = "blacklist.json"
-
-def load_blacklist():
-    try: 
-        with open(BLACKLIST_FILE, "r") as f:
-            return set(json.load(f))
-    except:
-        return set()
-    
-def save_blacklist():
-    with open(BLACKLIST_FILE, "w") as f:
-        json.dump(list(black_list), f)
-
-black_list = load_blacklist()
 
 
 # A command that will add a specified user to the blacklist of known malicious users
@@ -149,6 +149,25 @@ async def addToList(ctx, member: discord.Member):
     )
 
     # Bans the user from the server
+
+@bot.command()
+async def testUserJoin(ctx, member: discord.Member):
+    if member.id in black_list:
+        await member.send("You are on the blacklist and will be banned from the server.")
+        await member.kick(reason="User is on the blacklist.")
+        #await member.ban(reason="User is on the blacklist.")
+        print("Banned user: " + member.name + " (ID: " + str(member.id) + ")")
+
+
+@bot.command()
+async def closeClientSession(ctx):
+    global session
+    if session:
+        await session.close()
+        session = None
+        await ctx.send("Client session closed.")
+    else:
+        await ctx.send("No active client session to close.")
 
 
 #runs the bot
