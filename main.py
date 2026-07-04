@@ -139,19 +139,29 @@ async def on_message(message):
                     
                     # Bans the user
                     try:
-                        # Add the member to the blacklist
-                        #black_list.add(message.author.id)
-                        #save_blacklist()
-                        # Bans user
-                        await message.author.kick(reason="Sent a known malicious image.")
-                        #await message.author.ban(reason="Sent a known malicious image.")
-                        await message.channel.send(f"{message.author.mention} has been banned for sending a known malicious image.")
+                        
+                        await message.channel.send(f"{message.author.mention} has sent an image that matches a known malicious image hash.")
 
-                        print(
-                            f"Banned user: {message.author.name} "
-                            f"(ID: {message.author.id}) "
-                            f"for sending a known malicious image."
+                        # Need to create a role called "anti-bot-suspect" in the server for this to work
+                        await message.author.add_roles(discord.utils.get(message.guild.roles, name="anti-bot-suspect"))
+
+                        # Replace this with the channel ID of the channel called "anti-bot-appeals"
+                        channel_id = 1523020697679691876
+                        appeals_channel = bot.get_channel(channel_id)
+
+                        # Creates a thread in the appeals channel
+                        starter_message = await appeals_channel.send(f"Case: {message.author.mention}")
+
+                        thread = await starter_message.create_thread(
+                            name=f"Appeal thread for {message.author.name}",
+                            auto_archive_duration=60,  # Auto-archive after 60 minutes of inactivity
                         )
+                        await thread.send(f"{message.author.mention}, you have been flagged for sending a potentially malicious image. If you believe this is a mistake, a staff member will review your case.")
+                        # Sends the flagged image for review by a moderator
+                        await thread.send("Flagged image:")
+                        await thread.send(file=discord.File(io.BytesIO(data), filename=attachment.filename))
+
+
 
                     except discord.Forbidden:
                         print(f"Failed to ban user: {message.author.name} (ID: {message.author.id}) - insufficient permissions.")
@@ -171,6 +181,7 @@ async def on_message(message):
 
 # A command that will add a specified user to the blacklist of known malicious users
 @bot.command()
+@commands.has_any_role("Admin", "Moderator")
 async def addToList(ctx, member: discord.Member):
     # Check if the member is already in the blacklist
     if member.id in black_list:
@@ -189,6 +200,7 @@ async def addToList(ctx, member: discord.Member):
     # Bans the user from the server
 
 @bot.command()
+@commands.has_any_role("Admin", "Moderator")
 async def testUserJoin(ctx, member: discord.Member):
     if member.id in black_list:
         await member.send("You are on the blacklist and will be banned from the server.")
@@ -198,7 +210,8 @@ async def testUserJoin(ctx, member: discord.Member):
 
 
 @bot.command()
-async def closeClientSession(ctx):
+@commands.has_any_role("Admin", "Moderator")
+async def disconnect(ctx):
     global session
     if session:
         await session.close()
@@ -209,12 +222,28 @@ async def closeClientSession(ctx):
 
 
 @bot.command()
+@commands.has_any_role("Admin", "Moderator")
 async def readBlackList(ctx):
     if black_list:
         blacklist_str = "\n".join(str(uid) for uid in black_list)
         await ctx.send(f"Current Blacklist:\n{blacklist_str}")
     else:
         await ctx.send("The blacklist is currently empty.")
+
+@bot.command()
+@commands.has_any_role("Admin", "Moderator")
+async def guilty(ctx, member: discord.Member):
+    black_list.add(member.id)
+    save_blacklist()
+
+    await member.kick(reason="Sent a known malicious image.")
+    #await member.ban(reason="Sent a known malicious image.")
+
+@bot.command()
+@commands.has_any_role("Admin", "Moderator")
+async def innocent(ctx, member: discord.Member):
+    await member.remove_roles(discord.utils.get(member.guild.roles, name="anti-bot-suspect"))
+
 
 #runs the bot
 bot.run(token, log_handler=handler, log_level=logging.DEBUG)
