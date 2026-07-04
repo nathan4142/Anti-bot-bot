@@ -78,7 +78,7 @@ async def on_message(message):
         return
     # Check if the message contains an image
     for attachment in message.attachments:
-        await message.channel.send(f"Image sent by {message.author.name} (ID: {message.author.id})")
+        # DEBUG await message.channel.send(f"Image sent by {message.author.name} (ID: {message.author.id})")
         if not (
             attachment.content_type and 
             attachment.content_type.startswith("image")
@@ -100,11 +100,15 @@ async def on_message(message):
                 # Gets delta between 2 images
                 distance = uploaded_hash - bad_hash
                 
-                if distance <= 5:
+                if distance <= 5: # Threshold for similarity
                     await message.delete()
                     
                     # Bans the user
                     try:
+                        # Add the member to the blacklist
+                        #black_list.add(message.author.id)
+                        #save_blacklist()
+                        # Bans user
                         await message.author.kick(reason="Sent a known malicious image.")
                         #await message.author.ban(reason="Sent a known malicious image.")
                         await message.channel.send(f"{message.author.mention} has been banned for sending a known malicious image.")
@@ -169,6 +173,14 @@ async def closeClientSession(ctx):
     else:
         await ctx.send("No active client session to close.")
 
+
+@bot.command()
+async def readBlackList(ctx):
+    if black_list:
+        blacklist_str = "\n".join(str(uid) for uid in black_list)
+        await ctx.send(f"Current Blacklist:\n{blacklist_str}")
+    else:
+        await ctx.send("The blacklist is currently empty.")
 
 #runs the bot
 bot.run(token, log_handler=handler, log_level=logging.DEBUG)
