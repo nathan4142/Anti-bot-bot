@@ -7,6 +7,7 @@ import os
 import aiohttp
 import io
 from PIL import Image
+from PIL import ImageOps
 import imagehash
 
 import json
@@ -41,14 +42,31 @@ def save_blacklist():
 
 black_list = load_blacklist()
 
+# Converts image into multiple different hashes for comparison
+def get_hashes(img):
+    # Normalize the image
+    img = img.convert("RGB")
+    img.thumbnail((512, 512))
+    img = ImageOps.autocontrast(img)
+    return {
+        "phash": imagehash.phash(img),
+        "dhash": imagehash.dhash(img),
+        "ahash": imagehash.average_hash(img),
+        "whash": imagehash.whash(img),
+        "grayscale": imagehash.phash(img.convert("L")) 
+    }
 
 # Sets up malicious hash list
-malicious_hashes = set()
+# maybe make a set()
+malicious_hashes = []
 
 for filename in os.listdir("malicious_images"):
     img = Image.open(os.path.join("malicious_images", filename))
-    malicious_hashes.add(imagehash.phash(img))
 
+    malicious_hashes.append({
+        "filename": filename,
+        "hashes": get_hashes(img)
+    })
 
 session = None
 
@@ -93,14 +111,30 @@ async def on_message(message):
 
             img = Image.open(io.BytesIO(data))
 
-            uploaded_hash = imagehash.phash(img)
 
-            # Compare against known malicious hashes
+
+            #uploaded_hash = imagehash.phash(img)
+            # Gets hashes and compares against known malicious hashes
+            uploaded_hashes = get_hashes(img)
+
             for bad_hash in malicious_hashes:
-                # Gets delta between 2 images
-                distance = uploaded_hash - bad_hash
+                matches = 0
+                if uploaded_hashes["phash"] - bad_hash["hashes"]["phash"] <= 5:
+                    matches += 1
+
+                if uploaded_hashes["dhash"] - bad_hash["hashes"]["dhash"] <= 8:
+                    matches += 1
                 
-                if distance <= 5: # Threshold for similarity
+                if uploaded_hashes["ahash"] - bad_hash["hashes"]["ahash"] <= 5:
+                    matches += 1
+                
+                if uploaded_hashes["whash"] - bad_hash["hashes"]["whash"] <= 8:
+                    matches += 1
+
+                if uploaded_hashes["grayscale"] - bad_hash["hashes"]["grayscale"] <= 5:
+                    matches += 1
+
+                if matches >= 2: # Threshold for similarity
                     await message.delete()
                     
                     # Bans the user
